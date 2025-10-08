@@ -1,0 +1,163 @@
+📋 COMPREHENSIVE FEATURE SUMMARY FOR OSM DOCUMENTATION
+Based on: https://wiki.openstreetmap.org/wiki/Map_features
+================================================================================
+
+🏷️  SHOP FEATURES
+--------------------------------------------------
+📌 SHOPS_TOTAL
+   OSM Tag: shop=*
+   Description: All commercial establishments selling goods or services
+   Category: Shop
+   Documentation: https://wiki.openstreetmap.org/wiki/Key:shop
+
+📌 SHOPS_SHOES
+   OSM Tag: shop=shoes
+   Description: Stores selling footwear and shoe accessories
+   Category: Shop - Clothing, shoes, accessories
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:shop%3Dshoes
+
+
+🏷️  AMENITY FEATURES
+--------------------------------------------------
+📌 RESTAURANTS
+   OSM Tag: amenity=restaurant
+   Description: Commercial establishments serving prepared food and beverages
+   Category: Amenity - Sustenance
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Drestaurant
+
+📌 CAFES
+   OSM Tag: amenity=cafe
+   Description: Small establishments serving coffee, tea, and light refreshments
+   Category: Amenity - Sustenance
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dcafe
+
+📌 FAST_FOOD
+   OSM Tag: amenity=fast_food
+   Description: Quick-service restaurants with limited seating
+   Category: Amenity - Sustenance
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dfast_food
+
+📌 BARS
+   OSM Tag: amenity=bar
+   Description: Commercial establishments selling alcoholic drinks for on-premises consumption
+   Category: Amenity - Sustenance
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dbar
+
+📌 BANKS
+   OSM Tag: amenity=bank
+   Description: Financial institutions providing banking services
+   Category: Amenity - Financial
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dbank
+
+📌 PHARMACY
+   OSM Tag: amenity=pharmacy
+   Description: Stores selling prescription and over-the-counter medications
+   Category: Amenity - Healthcare
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dpharmacy
+
+📌 POST_OFFICES
+   OSM Tag: amenity=post_office
+   Description: Government facilities providing postal services
+   Category: Amenity - Public Service
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dpost_office
+
+📌 PARKING
+   OSM Tag: amenity=parking
+   Description: Areas designated for vehicle parking
+   Category: Amenity - Transportation
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dparking
+
+
+🏷️  TRANSPORT FEATURES
+--------------------------------------------------
+📌 METRO_STATION
+   OSM Tag: railway=station + public_transport=station
+   Description: Underground/subway railway stations for urban rapid transit
+   Category: Railway - Stations
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:railway%3Dstation
+
+📌 BUS_STOP
+   OSM Tag: highway=bus_stop
+   Description: Designated stops for public bus services
+   Category: Highway - Bus stops
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:highway%3Dbus_stop
+
+
+🏷️  TOURISM FEATURES
+--------------------------------------------------
+📌 HOTELS
+   OSM Tag: tourism=hotel
+   Description: Commercial accommodations providing lodging services
+   Category: Tourism - Accommodation
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:tourism%3Dhotel
+
+📌 ATTRACTIONS
+   OSM Tag: tourism=attraction
+   Description: Places of interest that attract visitors
+   Category: Tourism - Attractions
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:tourism%3Dattraction
+
+📌 MUSEUMS
+   OSM Tag: tourism=museum
+   Description: Institutions preserving and exhibiting cultural artifacts
+   Category: Tourism - Museums
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:tourism%3Dmuseum
+
+
+🏷️  LEISURE FEATURES
+--------------------------------------------------
+📌 PARKS
+   OSM Tag: leisure=park
+   Description: Public green spaces for recreation and relaxation
+   Category: Leisure - Parks
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:leisure%3Dpark
+
+
+🏷️  OFFICE FEATURES
+--------------------------------------------------
+📌 BUSINESS_CENTERS
+   OSM Tag: office=*
+   Description: Buildings housing professional and business services
+   Category: Office - Business
+   Documentation: https://wiki.openstreetmap.org/wiki/Key:office
+
+
+🏷️  BUILDING FEATURES
+--------------------------------------------------
+📌 RESIDENTIAL_BUILDINGS
+   OSM Tag: building=residential
+   Description: Buildings used primarily for housing
+   Category: Building - Residential
+   Documentation: https://wiki.openstreetmap.org/wiki/Tag:building%3Dresidential
+
+
+🏷️  HIGHWAY FEATURES
+--------------------------------------------------
+📌 WALKABILITY_SCORE
+   OSM Tag: highway=pedestrian + highway=footway + highway=cycleway
+   Description: Pedestrian-friendly infrastructure (pedestrian areas, footways, cycleways)
+   Category: Highway - Pedestrian infrastructure
+   Documentation: https://wiki.openstreetmap.org/wiki/Key:highway
+
+
+📊 SCORING METRICS:
+------------------------------
+🎯 ATTRACTIVENESS_SCORE
+   Formula: 30% food/entertainment + 25% services + 25% parks + 20% business
+   Components: restaurants + hotels + attractions + museums + banks + pharmacy + parks + business_centers
+
+🏪 COMPETITION_SCORE
+   Formula: 70% shoe shops + 30% total shops
+   Components: shops_shoes + shops_total
+
+🚇 ACCESSIBILITY_SCORE
+   Formula: 40% metro + 30% walkability + 20% bus + 10% parking
+   Components: metro_station + walkability_score + bus_stop + parking
+
+👟 SUITABILITY_SCORE
+   Formula: 40% low competition + 30% retail environment + 20% accessibility + 10% customer base
+   Components: (100-competition) + shops_total + restaurants + accessibility + residential_buildings + business_centers
+
+🌍 GLOBAL_SCORE
+   Formula: Average of all 4 scores
+   Components: (attractiveness + competition + accessibility + suitability) / 4

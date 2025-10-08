@@ -1,3 +1,9 @@
 api/__pycache__/
 cache/
 notebooks/*
+backup_data/*
+data/~lock.paris_score.csv#
+data/~lock.paris_scored.csv#
+data/~lock.pied_de_biche_stores_clean.csv#
+data/~lock.pied_de_biche_stores_scored.csv#
+data/~lock.pied_de_biche_stores_scored.csv#
