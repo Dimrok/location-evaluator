@@ -1,12 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, List
 import pandas as pd
 import numpy as np
 import osmnx as ox
 import warnings
 import time
 import os
+import openai
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -77,6 +78,29 @@ class LocationRequest(BaseModel):
     latitude: float
     longitude: float
     radius: Optional[int] = 500
+
+class Scores(BaseModel):
+    attractiveness: float
+    competition: float
+    accessibility: float
+    suitability: float
+    global_score: float
+
+class Features(BaseModel):
+    restaurants: int
+    metro_station: int
+    bus_stop: int
+    walkability_score: int
+    shops_total: int
+    shops_shoes: int
+    parks: int
+
+class LocationAnalysisRequest(BaseModel):
+    latitude: float
+    longitude: float
+    city: str = "Unknown"
+    scores: Scores
+    features: Features
 
 class LocationResponse(BaseModel):
     location: dict
@@ -324,6 +348,9 @@ def score_location(lat, lon, radius=500):
     accessibility = calculate_accessibility(features, norm_values)
     suitability = calculate_suitability(features, attractiveness, competition, accessibility, norm_values)
     
+    # Calculate global score
+    global_score = (attractiveness + competition + accessibility + suitability) / 4
+    
     # Convert numpy types to Python native types for JSON serialization
     def convert_numpy_types(obj):
         if isinstance(obj, dict):
@@ -349,7 +376,8 @@ def score_location(lat, lon, radius=500):
             'attractiveness': round(attractiveness, 2),
             'competition': round(competition, 2),
             'accessibility': round(accessibility, 2),
-            'suitability': round(suitability, 2)
+            'suitability': round(suitability, 2),
+            'global_score': round(global_score, 2)
         },
         'features': convert_numpy_types(features),
         'normalization_used': 'city_specific' if norm_values else 'default',
@@ -403,6 +431,273 @@ async def score_location_endpoint(request: LocationRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing location: {str(e)}")
+
+# LLM Integration for Location Insights
+class CityDataLoader:
+    def __init__(self):
+        self.city_data = {}
+        self.feature_descriptions = ""
+        self.load_data()
+    
+    def load_data(self):
+        """Load city CSVs and feature descriptions"""
+        try:
+            # Load feature descriptions
+            with open('data/features_desc.txt', 'r', encoding='utf-8') as f:
+                self.feature_descriptions = f.read()
+            
+            # Load city CSVs
+            cities = ['Paris', 'Lille', 'Bordeaux', 'Strasbourg', 'Toulouse']
+            for city in cities:
+                csv_path = f'data/{city.lower()}_scored.csv'
+                if os.path.exists(csv_path):
+                    df = pd.read_csv(csv_path)
+                    self.city_data[city] = df
+                    print(f"Loaded {city} data: {len(df)} points")
+            
+            print(f"✅ Loaded {len(self.city_data)} cities and feature descriptions")
+        except Exception as e:
+            print(f"❌ Error loading data: {e}")
+    
+    def get_city_stats(self, city_name: str) -> Dict:
+        """Get statistical summary for a city"""
+        if city_name not in self.city_data:
+            return {}
+        
+        df = self.city_data[city_name]
+        stats = {
+            'total_points': len(df),
+            'avg_attractiveness': df['attractiveness_score'].mean(),
+            'avg_competition': df['competition_score'].mean(),
+            'avg_accessibility': df['accessibility_score'].mean(),
+            'avg_suitability': df['suitability_score'].mean(),
+            'avg_global_score': df['global_score'].mean(),
+            'top_10_percent_threshold': df['global_score'].quantile(0.9),
+            'bottom_10_percent_threshold': df['global_score'].quantile(0.1)
+        }
+        return stats
+
+# Initialize data loader
+city_loader = CityDataLoader()
+
+def generate_location_insights(location_data: Dict, city_name: str) -> str:
+    """Generate AI-powered insights for a location"""
+    
+    # Get city statistics for comparison
+    city_stats = city_loader.get_city_stats(city_name)
+    
+    if not city_stats:
+        return "Unable to generate insights: City data not available."
+    
+    # Prepare context for LLM
+    # The location_data comes from basic_result.dict() which has the structure:
+    # {'location': {...}, 'scores': {...}, 'features': {...}, ...}
+    scores = location_data['scores']
+    features = location_data['features']
+    
+    # Add global_score if not present
+    if 'global_score' not in scores:
+        scores['global_score'] = (scores['attractiveness'] + scores['competition'] + 
+                                 scores['accessibility'] + scores['suitability']) / 4
+    
+    # Create prompt
+    prompt = f"""
+You are a retail location analysis expert. Analyze this location's scores compared to the city's data and provide actionable insights.
+
+LOCATION DATA:
+- Coordinates: {location_data['location']['latitude']:.6f}, {location_data['location']['longitude']:.6f}
+- City: {city_name}
+
+SCORES (0-100 scale):
+- Attractiveness: {scores['attractiveness']:.1f}
+- Competition: {scores['competition']:.1f}  
+- Accessibility: {scores['accessibility']:.1f}
+- Suitability: {scores['suitability']:.1f}
+- Global Score: {scores['global_score']:.1f}
+
+KEY FEATURES:
+- Restaurants: {features['restaurants']}
+- Metro stations: {features['metro_station']}
+- Bus stops: {features['bus_stop']}
+- Walkability: {features['walkability_score']}
+- Shops total: {features['shops_total']}
+- Shoe shops: {features['shops_shoes']}
+- Parks: {features['parks']}
+
+CITY COMPARISON DATA ({city_name}):
+- Average Global Score: {city_stats['avg_global_score']:.1f}
+- Top 10% threshold: {city_stats['top_10_percent_threshold']:.1f}
+- Bottom 10% threshold: {city_stats['bottom_10_percent_threshold']:.1f}
+- Total analyzed points: {city_stats['total_points']:,}
+
+FEATURE DESCRIPTIONS:
+{city_loader.feature_descriptions}
+
+Provide a concise analysis (2-3 paragraphs) covering:
+1. How this location ranks compared to the city average
+2. Key strengths and weaknesses
+3. Specific recommendations for retail success
+
+Focus on actionable insights for opening a shoe store.
+"""
+
+    try:
+        # Use OpenAI API (you can replace with local model)
+        print(f"🤖 Calling OpenAI API for {city_name}...")
+        
+        # Try the older API format first
+        openai.api_key = 'INSERT_OPENAI_API_KEY_HERE'
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a retail location analysis expert specializing in urban commercial real estate."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        result = response.choices[0].message.content.strip()
+        print(f"✅ OpenAI API response received ({len(result)} chars)")
+        return result
+        
+    except Exception as e:
+        print(f"❌ OpenAI API failed: {str(e)}")
+        # Fallback to simple analysis if LLM fails
+        return generate_fallback_insights(location_data, city_stats)
+
+def generate_fallback_insights(location_data: Dict, city_stats: Dict) -> str:
+    """Generate simple insights without LLM"""
+    scores = location_data['scores']
+    # Calculate global score if not present
+    global_score = scores.get('global_score', 
+                             (scores['attractiveness'] + scores['competition'] + 
+                              scores['accessibility'] + scores['suitability']) / 4)
+    city_avg = city_stats['avg_global_score']
+    
+    if global_score > city_stats['top_10_percent_threshold']:
+        ranking = "excellent (top 10%)"
+    elif global_score > city_avg:
+        ranking = "above average"
+    elif global_score > city_stats['bottom_10_percent_threshold']:
+        ranking = "below average"
+    else:
+        ranking = "poor (bottom 10%)"
+    
+    insights = f"""
+LOCATION ANALYSIS:
+
+This location has a {ranking} global score of {global_score:.1f} compared to the city average of {city_avg:.1f}.
+
+Key Observations:
+- Attractiveness: {scores['attractiveness']:.1f}/100 - {'Strong' if scores['attractiveness'] > 60 else 'Moderate' if scores['attractiveness'] > 40 else 'Weak'} commercial environment
+- Competition: {scores['competition']:.1f}/100 - {'High' if scores['competition'] > 70 else 'Moderate' if scores['competition'] > 40 else 'Low'} competition level
+- Accessibility: {scores['accessibility']:.1f}/100 - {'Excellent' if scores['accessibility'] > 60 else 'Good' if scores['accessibility'] > 40 else 'Limited'} transport access
+- Suitability: {scores['suitability']:.1f}/100 - {'High' if scores['suitability'] > 60 else 'Moderate' if scores['suitability'] > 40 else 'Low'} retail potential
+
+Recommendation: {'Strong potential' if global_score > city_avg else 'Consider carefully'} for retail development.
+"""
+    return insights.strip()
+
+# New endpoint for scores + insights
+@app.post("/score-location-with-insights")
+async def score_location_with_insights(request: LocationRequest):
+    """Score a location and provide AI-powered insights (uses /score-location endpoint internally)"""
+    try:
+        start_time = time.time()
+        
+        # Step 1: Get basic scores using the /score-location endpoint
+        basic_response = await score_location_endpoint(request)
+        
+        # Convert Pydantic response to dict for easier handling
+        basic_data = basic_response.dict()
+        
+        # Step 2: Generate AI insights using the /generate-insights endpoint
+        insights_request = LocationAnalysisRequest(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            city=basic_data['location']['city'],
+            scores=Scores(
+                attractiveness=basic_data['scores']['attractiveness'],
+                competition=basic_data['scores']['competition'],
+                accessibility=basic_data['scores']['accessibility'],
+                suitability=basic_data['scores']['suitability'],
+                global_score=basic_data['scores']['global_score']
+            ),
+            features=Features(
+                restaurants=basic_data['features']['restaurants'],
+                metro_station=basic_data['features']['metro_station'],
+                bus_stop=basic_data['features']['bus_stop'],
+                walkability_score=basic_data['features']['walkability_score'],
+                shops_total=basic_data['features']['shops_total'],
+                shops_shoes=basic_data['features']['shops_shoes'],
+                parks=basic_data['features']['parks']
+            )
+        )
+        
+        insights_data = await generate_insights(insights_request)
+        
+        # Combine results
+        basic_data['insights'] = insights_data['insights']
+        basic_data['city'] = insights_data['city']
+        
+        processing_time = time.time() - start_time
+        basic_data['processing_time'] = round(processing_time, 3)
+        
+        return basic_data
+        
+    except Exception as e:
+        print(f"Error in combined endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error processing location with insights: {str(e)}")
+
+@app.post("/generate-insights")
+async def generate_insights(request: LocationAnalysisRequest):
+    """Generate AI insights from existing location analysis data"""
+    try:
+        start_time = time.time()
+        
+        # Convert request to the format expected by generate_location_insights
+        location_data = {
+            'location': {
+                'latitude': request.latitude,
+                'longitude': request.longitude
+            },
+            'scores': {
+                'attractiveness': request.scores.attractiveness,
+                'competition': request.scores.competition,
+                'accessibility': request.scores.accessibility,
+                'suitability': request.scores.suitability,
+                'global_score': request.scores.global_score
+            },
+            'features': {
+                'restaurants': request.features.restaurants,
+                'metro_station': request.features.metro_station,
+                'bus_stop': request.features.bus_stop,
+                'walkability_score': request.features.walkability_score,
+                'shops_total': request.features.shops_total,
+                'shops_shoes': request.features.shops_shoes,
+                'parks': request.features.parks
+            }
+        }
+        
+        insights = generate_location_insights(location_data, request.city)
+        
+        processing_time = time.time() - start_time
+        
+        return {
+            "insights": insights,
+            "city": request.city,
+            "processing_time": round(processing_time, 3)
+        }
+        
+    except Exception as e:
+        print(f"Error generating insights: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating insights: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
