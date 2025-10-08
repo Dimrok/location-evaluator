@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 import pandas as pd
@@ -72,6 +73,17 @@ app = FastAPI(
     description="API to score retail locations based on OSM data",
     version="1.0.0"
 )
+
+# CORS configuration
+# Note: In production, restrict allowed origins to trusted domains.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development/demo
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Pydantic models
 class LocationRequest(BaseModel):
